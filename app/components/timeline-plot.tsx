@@ -37,10 +37,8 @@ export default function TimelinePlot({
   const container = useRef<HTMLDivElement>(null);
   const graph = useRef<HTMLDivElement | null>(null);
   const [mobile, setMobile] = useState(false);
-  const [zooming, setZooming] = useState(false);
   const [hidden, setHidden] = useState<string[]>([]);
   const [actionError, setActionError] = useState("");
-  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -56,7 +54,6 @@ export default function TimelinePlot({
     let cleanup = () => {};
     setLoading(true);
     setError(false);
-    setZooming(false);
     setHidden([]);
     setActionError("");
     async function draw() {
@@ -121,7 +118,7 @@ export default function TimelinePlot({
             gridcolor: "#f0f0f0",
             zeroline: false,
             hoverformat: "%d %b %Y",
-            nticks: small ? 4 : 9,
+            nticks: 9,
           },
           yaxis: {
             title: {
@@ -201,10 +198,7 @@ export default function TimelinePlot({
     };
   }, [series, kind, attempt, mobile]);
 
-  async function chartAction(
-    action: "zoom" | "reset" | "download" | "toggle",
-    index = 0,
-  ) {
+  async function toggleSeries(index: number) {
     const el = graph.current;
     if (!el || loading) return;
     setActionError("");
@@ -212,49 +206,20 @@ export default function TimelinePlot({
       const Plotly = await import("plotly.js-basic-dist-min").then(
         (m) => m.default,
       );
-      if (action === "toggle") {
-        const id = series[index].id;
-        const isHidden = hidden.includes(id);
-        await Plotly.restyle(el, { visible: isHidden ? true : "legendonly" }, [
-          index,
-        ]);
-        setHidden((previous) =>
-          isHidden
-            ? previous.filter((value) => value !== id)
-            : [...previous, id],
-        );
-      } else if (action === "zoom") {
-        await Plotly.relayout(el, { dragmode: zooming ? false : "zoom" });
-        setZooming(!zooming);
-      } else if (action === "reset") {
-        await Plotly.relayout(el, {
-          "xaxis.autorange": true,
-          ...(kind === "rolling"
-            ? { "yaxis.range": [-1.05, 1.05], "yaxis.autorange": false }
-            : { "yaxis.autorange": true }),
-          dragmode: false,
-        });
-        setZooming(false);
-      } else {
-        setDownloading(true);
-        await Plotly.downloadImage(el, {
-          format: "png",
-          filename: `quant-wannabe-${kind}`,
-          scale: 2,
-          width: 1200,
-          height: 500,
-        });
-      }
+      const id = series[index].id;
+      const isHidden = hidden.includes(id);
+      await Plotly.restyle(el, { visible: isHidden ? true : "legendonly" }, [index]);
+      setHidden((previous) =>
+        isHidden ? previous.filter((value) => value !== id) : [...previous, id],
+      );
     } catch {
-      setActionError("That chart action failed. Please try again.");
-    } finally {
-      setDownloading(false);
+      setActionError("Could not toggle this asset. Please try again.");
     }
   }
 
   async function inspectDate(clientX: number, clientY: number) {
     const el = graph.current;
-    if (!mobile || zooming || loading || !el) return;
+    if (!mobile || loading || !el) return;
     const bounds = el.querySelector(".nsewdrag")?.getBoundingClientRect();
     const range = (el as unknown as PlotlyHTMLElement).layout.xaxis?.range;
     if (
@@ -281,7 +246,7 @@ export default function TimelinePlot({
   }
   return (
     <div
-      className={`plot-shell ${zooming ? "is-zooming" : ""}`}
+      className={`plot-shell${mobile ? " is-touch" : ""}`}
       aria-busy={loading}
       data-kind={kind}
     >
@@ -297,7 +262,7 @@ export default function TimelinePlot({
                 key={s.id}
                 disabled={loading || error}
                 aria-pressed={!hidden.includes(s.id)}
-                onClick={() => void chartAction("toggle", index)}
+                onClick={() => void toggleSeries(index)}
               >
                 <span
                   className={`series-swatch swatch-${s.id}`}
@@ -308,52 +273,32 @@ export default function TimelinePlot({
               </button>
             ))}
           </div>
-          <div
-            className="touch-toolbar"
-            role="group"
-            aria-label="Chart controls"
-          >
-            <button
-              disabled={loading || error}
-              aria-pressed={zooming}
-              onClick={() => void chartAction("zoom")}
-            >
-              Zoom
-            </button>
-            <button
-              disabled={loading || error}
-              onClick={() => void chartAction("reset")}
-            >
-              Reset
-            </button>
-            <button
-              disabled={loading || error || downloading}
-              onClick={() => void chartAction("download")}
-            >
-              {downloading ? "Saving…" : "Save PNG"}
-            </button>
-          </div>
-          <p className="touch-hint" aria-live="polite">
-            {zooming
-              ? "Drag across the chart to zoom. Tap Reset to scroll again."
-              : "Tap a line to inspect. Swipe up or down to scroll."}
+          <p className="touch-hint">
+            Swipe left or right to explore. Tap to inspect.
           </p>
         </>
       )}
       <div
-        ref={container}
-        className="timeline-plot"
-        onTouchStartCapture={(event) => {
-          // Plotly cancels native touch scrolling even with dragmode disabled.
-          // Keep the browser's default gesture; tap inspection is handled below.
-          if (mobile && !zooming) event.stopPropagation();
-        }}
-        onClick={(event) => {
-          void inspectDate(event.clientX, event.clientY);
-        }}
-        role="img"
-        aria-label={`${labels.description} over time: ${series.map((s) => s.name).join(", ")}. Use the legend to toggle lines.`}
-      />
+        className="timeline-scroll"
+        tabIndex={mobile ? 0 : undefined}
+        role={mobile ? "region" : undefined}
+        aria-label={mobile ? "Scrollable chart" : undefined}
+      >
+        <div
+          ref={container}
+          className="timeline-plot"
+          onTouchStartCapture={(event) => {
+            // Plotly cancels native touch scrolling even with dragmode disabled.
+            // Keep the browser's default gesture; tap inspection is handled below.
+            if (mobile) event.stopPropagation();
+          }}
+          onClick={(event) => {
+            void inspectDate(event.clientX, event.clientY);
+          }}
+          role="img"
+          aria-label={`${labels.description} over time: ${series.map((s) => s.name).join(", ")}. Use the legend to toggle lines.`}
+        />
+      </div>
       {actionError && (
         <p className="chart-action-error" role="alert">
           {actionError}

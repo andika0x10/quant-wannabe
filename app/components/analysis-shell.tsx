@@ -70,8 +70,7 @@ export function Methodology({ children }: { children: ReactNode }) {
           </p>
           <p className="method-detail">
             Hover or tap to inspect a date. Toggle assets in the legend. On
-            touch screens, swipe to scroll or enable Zoom to select a region.
-            Reset restores the full chart.
+            touch screens, swipe left or right to explore the chart.
           </p>
         </article>
       </div>

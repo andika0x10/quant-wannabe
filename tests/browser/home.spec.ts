@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page, type Locator } from "@playwright/test";
 
 const DAY = 86_400_000;
 const now = Date.UTC(2026, 9, 28);
@@ -21,6 +21,98 @@ const fixture = {
     { id: "oil", status: "available", candles: candles() },
   ],
 };
+
+async function swipeChart(
+  page: Page,
+  chart: Locator,
+  direction: "left" | "right",
+) {
+  const viewport = chart.locator(".timeline-scroll");
+  await viewport.scrollIntoViewIfNeeded();
+  const bounds = (await viewport.boundingBox())!;
+  const before = await viewport.evaluate((el) => el.scrollLeft);
+  const x = bounds.x + bounds.width * (direction === "left" ? 0.8 : 0.2);
+  const y = bounds.y + bounds.height / 2;
+  const client = await page.context().newCDPSession(page);
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchStart",
+    touchPoints: [{ x, y }],
+  });
+  for (let i = 1; i <= 10; i++) {
+    await client.send("Input.dispatchTouchEvent", {
+      type: "touchMove",
+      touchPoints: [
+        {
+          x: x + (direction === "left" ? -1 : 1) * i * bounds.width * 0.05,
+          y,
+        },
+      ],
+    });
+    await page.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
+  }
+  await client.send("Input.dispatchTouchEvent", {
+    type: "touchEnd",
+    touchPoints: [],
+  });
+  await client.detach();
+  if (direction === "left") {
+    await expect
+      .poll(() => viewport.evaluate((el) => el.scrollLeft))
+      .toBeGreaterThan(before + 20);
+  } else {
+    await expect
+      .poll(() => viewport.evaluate((el) => el.scrollLeft))
+      .toBeLessThan(before - 20);
+  }
+  // Let native chart and page scrolling finish before the next gesture.
+  await viewport.evaluate(
+    (el) => new Promise<void>((resolve) => {
+      let previousLeft = el.scrollLeft;
+      let previousTop = el.getBoundingClientRect().top;
+      let stableFrames = 0;
+      const check = () => {
+        const top = el.getBoundingClientRect().top;
+        stableFrames = el.scrollLeft === previousLeft && top === previousTop
+          ? stableFrames + 1 : 0;
+        previousLeft = el.scrollLeft;
+        previousTop = top;
+        if (stableFrames >= 6) resolve();
+        else requestAnimationFrame(check);
+      };
+      requestAnimationFrame(check);
+    }),
+  );
+}
+
+async function checkTouchChart(page: Page, chart: Locator, asset: string) {
+  await expect(
+    chart.getByRole("button", { name: /^(Zoom|Reset|Save PNG)$/ }),
+  ).toHaveCount(0);
+  await expect(chart.locator(".modebar")).toHaveCount(0);
+  await expect(chart.locator(".touch-hint")).toHaveText(
+    "Swipe left or right to explore. Tap to inspect.",
+  );
+  const viewport = chart.locator(".timeline-scroll");
+  expect(await viewport.evaluate((el) => el.scrollWidth)).toBeGreaterThanOrEqual(
+    900,
+  );
+  expect(await viewport.evaluate((el) => el.scrollLeft)).toBe(0);
+  await swipeChart(page, chart, "left");
+  // Tap within the visible part, without Playwright scrolling the wide plot to its center.
+  const bounds = (await viewport.boundingBox())!;
+  await page.touchscreen.tap(
+    bounds.x + bounds.width / 2,
+    bounds.y + bounds.height / 2,
+  );
+  await expect(chart.locator(".hoverlayer")).toContainText(asset);
+  await expect(chart.locator(".hoverlayer .hovertext")).toHaveCount(0);
+  await swipeChart(page, chart, "right");
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+  ).toBe(true);
+}
 
 test("correlations redirect, rolling chart and performance chart share asset styling", async ({
   page,
@@ -213,7 +305,7 @@ test.describe("touch screens", () => {
   test.use({ hasTouch: true, isMobile: true });
 
   for (const width of [320, 390]) {
-    test(`math and touch chart controls work at ${width}px`, async ({
+    test(`math and horizontally scrolling charts work at ${width}px`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 844 });
@@ -252,7 +344,8 @@ test.describe("touch screens", () => {
       await expect(rolling.locator(".scatterlayer .trace")).toHaveCount(2);
       await legend.tap();
       await expect(rolling.locator(".scatterlayer .trace")).toHaveCount(3);
-      const plotArea = rolling.locator(".nsewdrag");
+      await checkTouchChart(page, rolling, "Gold");
+      const plotArea = rolling.locator(".timeline-scroll");
       await plotArea.scrollIntoViewIfNeeded();
       const bounds = (await plotArea.boundingBox())!;
       const client = await page.context().newCDPSession(page);
@@ -282,20 +375,6 @@ test.describe("touch screens", () => {
       await expect
         .poll(() => page.evaluate(() => scrollY))
         .toBeGreaterThan(beforeScroll + 20);
-      await plotArea.tap();
-      await expect(rolling.locator(".hoverlayer")).toContainText("Gold");
-      await expect(rolling.locator(".hoverlayer .hovertext")).toHaveCount(0);
-      await rolling.getByRole("button", { name: "Zoom", exact: true }).tap();
-      await expect(rolling).toHaveClass(/is-zooming/);
-      await rolling.getByRole("button", { name: "Reset", exact: true }).tap();
-      await expect(rolling).not.toHaveClass(/is-zooming/);
-      const download = page.waitForEvent("download");
-      await rolling
-        .getByRole("button", { name: "Save PNG", exact: true })
-        .tap();
-      expect((await download).suggestedFilename()).toBe(
-        "quant-wannabe-rolling.png",
-      );
       await expect(page.locator(".math-block .katex-mathml")).toHaveCount(2);
       await expect(page.locator(".katex-error")).toHaveCount(0);
       expect(
@@ -312,7 +391,8 @@ test.describe("touch screens", () => {
       ).toBe(true);
       await page.setViewportSize({ width: 844, height: 390 });
       await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(1);
-      await expect(page.locator(".touch-toolbar")).toHaveCount(1);
+      await expect(page.locator(".touch-toolbar")).toHaveCount(0);
+      await swipeChart(page, rolling, "left");
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
@@ -346,7 +426,7 @@ test("performance periods, ranking and calendar heatmap agree", async ({
         .locator(".js-plotly-plot")
         .evaluate(
           (el) =>
-            (el as HTMLElement & { data: { x: string[] }[] }).data[0].x.length,
+            (el as HTMLElement & { data?: { x: string[] }[] }).data?.[0]?.x.length,
         ),
     )
     .toBe(31);
@@ -502,27 +582,16 @@ test.describe("new pages on touch screens", () => {
             () => document.documentElement.scrollWidth <= innerWidth,
           ),
         ).toBe(true);
-        const chart = page.locator(".plot-shell").first();
-        const toggle = chart.getByRole("button", {
-          name: "Bitcoin",
-          exact: true,
-        });
-        await toggle.tap();
-        await expect(toggle).toHaveAttribute("aria-pressed", "false");
-        await toggle.tap();
-        await chart.locator(".nsewdrag").tap();
-        await expect(chart.locator(".hoverlayer")).toContainText("Bitcoin");
-        await chart.getByRole("button", { name: "Zoom", exact: true }).tap();
-        await expect(chart).toHaveClass(/is-zooming/);
-        await chart.getByRole("button", { name: "Reset", exact: true }).tap();
-        await expect(chart).not.toHaveClass(/is-zooming/);
-        const download = page.waitForEvent("download");
-        await chart
-          .getByRole("button", { name: "Save PNG", exact: true })
-          .tap();
-        expect((await download).suggestedFilename()).toContain(
-          route === "risk" ? "drawdown" : "cumulative",
-        );
+        for (const chart of await page.locator(".plot-shell").all()) {
+          const toggle = chart.getByRole("button", {
+            name: "Bitcoin",
+            exact: true,
+          });
+          await toggle.tap();
+          await expect(toggle).toHaveAttribute("aria-pressed", "false");
+          await toggle.tap();
+          await checkTouchChart(page, chart, "Bitcoin");
+        }
         await page.getByRole("heading", { level: 1 }).click();
         await page.screenshot({
           path: `test-results/${route}-${width}.png`,

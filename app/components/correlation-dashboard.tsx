@@ -198,8 +198,7 @@ export default function CorrelationDashboard() {
             </p>
             <p className="method-detail">
               Hover or tap to compare a date. Use the legend to toggle lines. On
-              a phone, swipe vertically to scroll; tap Zoom to select a chart
-              region. Reset restores the full history and scrolling.
+              a phone, swipe left or right to explore the chart.
             </p>
           </article>
         </div>
