@@ -5,6 +5,8 @@
 	"packageManager": "npm",
 	"dependencies": {
 		"@vinext/cloudflare": "latest",
+		"katex": "^0.19.1",
+		"plotly.js-basic-dist-min": "^4.1.2",
 		"react": "latest",
 		"react-dom": "latest",
 		"react-server-dom-webpack": "latest",
@@ -12,14 +14,18 @@
 	},
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "beta",
+		"@playwright/test": "^1.64.1",
 		"@tailwindcss/postcss": "latest",
+		"@types/katex": "^0.16.8",
 		"@types/node": "latest",
+		"@types/plotly.js": "^3.0.15",
 		"@types/react": "latest",
 		"@types/react-dom": "latest",
 		"@vitejs/plugin-react": "latest",
 		"@vitejs/plugin-rsc": "latest",
 		"cf": "^1.0.0-beta.23",
 		"tailwindcss": "latest",
+		"tsx": "^4.23.15",
 		"typescript": "latest",
 		"vite": "8.3.0"
 	},
@@ -30,6 +36,9 @@
 		"start": "vite preview",
 		"deploy": "vinext-cloudflare deploy",
 		"preview": "npm run build && npm run start --",
-		"cf-typegen": "cf workers types"
+		"cf-typegen": "cf workers types",
+		"test": "tsx --test tests/correlations.test.ts",
+		"test:e2e": "playwright test",
+		"typecheck": "tsc --noEmit"
 	}
 }
