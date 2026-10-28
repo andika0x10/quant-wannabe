@@ -37,7 +37,7 @@
 		"deploy": "vinext-cloudflare deploy",
 		"preview": "npm run build && npm run start --",
 		"cf-typegen": "cf workers types",
-		"test": "tsx --test tests/correlations.test.ts",
+		"test": "tsx --test tests/correlations.test.ts tests/market-analysis.test.ts",
 		"test:e2e": "playwright test",
 		"typecheck": "tsc --noEmit"
 	}

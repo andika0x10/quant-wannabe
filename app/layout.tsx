@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "katex/dist/katex.min.css";
+import { MarketProvider } from "./components/market-data";
 
 export const metadata: Metadata = {
-  title: "Quant Wannabe — Does Bitcoin have anything in common?",
+  title: { default: "Quant Wannabe", template: "%s | Quant Wannabe" },
   description:
     "Explore Bitcoin’s rolling correlations and cumulative returns alongside Gold, DXY, S&P 500, and Brent Oil using Hyperliquid data.",
 };
@@ -12,7 +13,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <head>
         <link
           rel="preload"
@@ -29,7 +30,9 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
       </head>
-      <body>{children}</body>
+      <body>
+        <MarketProvider>{children}</MarketProvider>
+      </body>
     </html>
   );
 }

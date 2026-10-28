@@ -1,4 +1,5 @@
-/** Keep line, legend, and reading colors consistent across both charts. */
+/** Shared visual settings for every analysis chart, legend, and reading. */
+export const SERIES_LINE_WIDTH = 1.25;
 export const SERIES_COLORS: Record<string, string> = {
   btc: "#2563eb",
   gold: "#b77900",

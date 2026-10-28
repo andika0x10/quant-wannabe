@@ -22,7 +22,7 @@ const fixture = {
   ],
 };
 
-test("all comparison lines share one rolling chart and all prices share one cumulative chart", async ({
+test("correlations redirect, rolling chart and performance chart share asset styling", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -34,40 +34,35 @@ test("all comparison lines share one rolling chart and all prices share one cumu
   });
   await page.goto("/");
   const plots = page.locator(".plot-shell[aria-busy=false]");
-  await expect(plots).toHaveCount(2);
+  await expect(plots).toHaveCount(1);
   await expect(page.locator(".site-header svg, .site-header img")).toHaveCount(
     0,
   );
   const rolling = page.locator('[data-kind="rolling"]');
-  const cumulative = page.locator('[data-kind="cumulative"]');
+  await expect(page).toHaveURL(/\/correlations$/);
+  await expect(page).toHaveTitle("Bitcoin correlations | Quant Wannabe");
+  await expect(page.locator('nav [aria-current="page"]')).toHaveText(
+    "Correlations",
+  );
   await expect(rolling.locator(".legendtext")).toHaveText([
     "Gold",
     "S&P 500",
     "Oil (Brent)",
   ]);
-  await expect(cumulative.locator(".legendtext")).toHaveText([
-    "Bitcoin",
-    "Gold",
-    "S&P 500",
-    "Oil (Brent)",
-  ]);
-  const readLines = (plot: typeof rolling) =>
-    plot.locator(".js-plotly-plot").evaluate((el) =>
+  const rollingLines = await rolling
+    .locator(".js-plotly-plot")
+    .evaluate((el) =>
       (
         el as HTMLElement & {
-          data: { name: string; line: { color: string; dash: string } }[];
+          data: {
+            name: string;
+            line: { color: string; width: number; dash: string };
+          }[];
         }
       ).data.map((s) => ({ name: s.name, ...s.line })),
     );
-  const rollingLines = await readLines(rolling);
-  const cumulativeLines = await readLines(cumulative);
-  expect(new Set(cumulativeLines.map((line) => line.color)).size).toBe(
-    cumulativeLines.length,
-  );
   for (const line of rollingLines) {
-    expect(line.color).toBe(
-      cumulativeLines.find((other) => other.name === line.name)?.color,
-    );
+    expect(line.width).toBe(1.25);
     expect(line.dash).toBe("solid");
   }
   await expect(page.locator(".latest-reading").first()).toContainText("−1.00");
@@ -111,9 +106,32 @@ test("all comparison lines share one rolling chart and all prices share one cumu
   await expect(page.locator(".relationship .chart-empty")).toContainText(
     "365-day window",
   );
-  await expect(cumulative).toHaveAttribute("aria-busy", "false");
   await page.getByRole("button", { name: "90 days", exact: true }).click();
   await expect(rolling).toHaveAttribute("aria-busy", "false");
+  await page.getByRole("link", { name: "Performance", exact: true }).click();
+  const cumulative = page.locator('[data-kind="cumulative"]');
+  await expect(cumulative).toHaveAttribute("aria-busy", "false");
+  await expect(cumulative.locator(".legendtext")).toHaveText([
+    "Bitcoin",
+    "Gold",
+    "S&P 500",
+    "Oil (Brent)",
+  ]);
+  const cumulativeLines = await cumulative
+    .locator(".js-plotly-plot")
+    .evaluate((el) =>
+      (
+        el as HTMLElement & {
+          data: { name: string; line: { color: string; width: number } }[];
+        }
+      ).data.map((s) => ({ name: s.name, ...s.line })),
+    );
+  expect(new Set(cumulativeLines.map((s) => s.color)).size).toBe(4);
+  for (const line of rollingLines)
+    expect(cumulativeLines.find((s) => s.name === line.name)?.color).toBe(
+      line.color,
+    );
+  expect(cumulativeLines.every((s) => s.width === 1.25)).toBe(true);
   expect(requests).toBe(1);
   expect(errors).toEqual([]);
 });
@@ -133,13 +151,13 @@ test("failed requests recover through retry", async ({ page }) => {
     "Market data could not be loaded",
   );
   await page.getByRole("button", { name: "Try again", exact: true }).click();
-  await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(2);
-  await expect(page.locator(".math-block .katex")).toHaveCount(3);
+  await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(1);
+  await expect(page.locator(".math-block .katex")).toHaveCount(2);
   await expect(page.locator(".katex-error")).toHaveCount(0);
   expect(attempts).toBe(2);
 });
 
-test("mobile keeps both multi-line plots visible without overflow and supports keyboard", async ({
+test("mobile keeps correlations visible without overflow and supports keyboard", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 375, height: 812 });
@@ -148,7 +166,7 @@ test("mobile keeps both multi-line plots visible without overflow and supports k
     route.fulfill({ json: fixture }),
   );
   await page.goto("/");
-  await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(2);
+  await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(1);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
@@ -156,7 +174,23 @@ test("mobile keeps both multi-line plots visible without overflow and supports k
   ).toBe(true);
   await page.keyboard.press("Tab");
   await expect(
+    page.getByRole("link", { name: "Skip to content" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
     page.getByRole("link", { name: "Quant Wannabe." }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "Correlations", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "Performance", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "Risk", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "How it works" })).toBeFocused();
@@ -189,7 +223,7 @@ test.describe("touch screens", () => {
         route.fulfill({ json: fixture }),
       );
       await page.goto("/");
-      await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(2);
+      await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(1);
       const rolling = page.locator('[data-kind="rolling"]');
       const windows = page.getByRole("group", {
         name: "Rolling window",
@@ -262,7 +296,7 @@ test.describe("touch screens", () => {
       expect((await download).suggestedFilename()).toBe(
         "quant-wannabe-rolling.png",
       );
-      await expect(page.locator(".math-block .katex-mathml")).toHaveCount(3);
+      await expect(page.locator(".math-block .katex-mathml")).toHaveCount(2);
       await expect(page.locator(".katex-error")).toHaveCount(0);
       expect(
         await page.evaluate(
@@ -277,8 +311,8 @@ test.describe("touch screens", () => {
           ),
       ).toBe(true);
       await page.setViewportSize({ width: 844, height: 390 });
-      await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(2);
-      await expect(page.locator(".touch-toolbar")).toHaveCount(2);
+      await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(1);
+      await expect(page.locator(".touch-toolbar")).toHaveCount(1);
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
@@ -286,5 +320,215 @@ test.describe("touch screens", () => {
       ).toBe(true);
       expect(errors).toEqual([]);
     });
+  }
+});
+
+test("performance periods, ranking and calendar heatmap agree", async ({
+  page,
+}) => {
+  await page.route("**/api/correlations", (route) =>
+    route.fulfill({ json: fixture }),
+  );
+  await page.goto("/performance");
+  await expect(page).toHaveTitle("Market performance | Quant Wannabe");
+  const cumulative = page.locator('[data-kind="cumulative"]');
+  await expect(cumulative).toHaveAttribute("aria-busy", "false");
+  await expect(page.locator('nav [aria-current="page"]')).toHaveText(
+    "Performance",
+  );
+  await expect(
+    page.getByRole("button", { name: "All", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "30 days", exact: true }).click();
+  await expect
+    .poll(() =>
+      cumulative
+        .locator(".js-plotly-plot")
+        .evaluate(
+          (el) =>
+            (el as HTMLElement & { data: { x: string[] }[] }).data[0].x.length,
+        ),
+    )
+    .toBe(31);
+  await expect(page.locator(".chart-footnote")).toContainText(
+    /27 Sept? 2026.*27 Oct 2026/,
+  );
+  const gold = page
+    .getByRole("region", { name: "Return ranking table", exact: true })
+    .getByRole("row")
+    .filter({ hasText: "Gold" });
+  const plottedReturn = await cumulative
+    .locator(".js-plotly-plot")
+    .evaluate((el) => {
+      const trace = (
+        el as HTMLElement & { data: { name: string; y: number[] }[] }
+      ).data.find((s) => s.name === "Gold")!;
+      return (trace.y.at(-1)! - 1) * 100;
+    });
+  await expect(gold).toContainText(Math.abs(plottedReturn).toFixed(2));
+  await expect(
+    page.getByRole("region", { name: "Return ranking table", exact: true }),
+  ).toContainText("Data unavailable");
+  const heatmap = page.getByRole("region", { name: "2026 monthly returns" });
+  await expect(
+    heatmap.getByRole("cell", { name: "Bitcoin, Oct 2026:", exact: false }),
+  ).toHaveText("—");
+  await expect(
+    heatmap.getByRole("cell", { name: "Bitcoin, Sep 2026:", exact: false }),
+  ).toContainText("%");
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.screenshot({
+    path: "test-results/performance-desktop.png",
+    fullPage: true,
+  });
+});
+
+test("risk charts expose correct axes, windows and working chart actions", async ({
+  page,
+}) => {
+  await page.route("**/api/correlations", (route) =>
+    route.fulfill({ json: fixture }),
+  );
+  await page.goto("/risk");
+  await expect(page).toHaveTitle("Risk & drawdown | Quant Wannabe");
+  await expect(page.locator('nav [aria-current="page"]')).toHaveText("Risk");
+  await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(2);
+  await page.getByRole("button", { name: "90 days", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "90 days", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".chart-footnote").nth(1)).toContainText(
+    "Trailing 90",
+  );
+  for (const kind of ["drawdown", "volatility"]) {
+    const chart = page.locator(`[data-kind="${kind}"]`);
+    await expect(chart).toHaveAttribute("aria-busy", "false");
+    const values = await chart.locator(".js-plotly-plot").evaluate((el) => {
+      const plot = el as HTMLElement & {
+        data: { y: (number | null)[]; line: { width: number } }[];
+        layout: { yaxis: { title: { text: string } } };
+      };
+      return {
+        values: plot.data.flatMap((s) => s.y).filter((v) => v !== null),
+        widths: plot.data.map((s) => s.line.width),
+        axis: plot.layout.yaxis.title.text,
+      };
+    });
+    expect(values.widths.every((width) => width === 1.25)).toBe(true);
+    expect(
+      values.values.every((v) => (kind === "drawdown" ? v! <= 0 : v! >= 0)),
+    ).toBe(true);
+    expect(values.axis).toContain("%");
+    await chart.locator(".legendtoggle").first().click();
+    await expect(chart.locator(".scatterlayer .trace")).toHaveCount(3);
+    await chart.locator(".legendtoggle").first().click();
+    await expect(chart.locator(".scatterlayer .trace")).toHaveCount(4);
+    await chart.locator('[data-title="Zoom in"]').click();
+    await chart.locator('[data-title="Reset axes"]').click();
+    const download = page.waitForEvent("download");
+    await chart.locator('[data-title="Download plot as a PNG"]').click();
+    expect((await download).suggestedFilename()).toBe(
+      `quant-wannabe-${kind}.png`,
+    );
+  }
+  await expect(
+    page.getByRole("region", { name: "Risk by asset table", exact: true }),
+  ).toContainText("Data unavailable");
+  await expect(page.locator(".katex-error")).toHaveCount(0);
+  await page.getByRole("heading", { level: 1 }).click();
+  await page.screenshot({
+    path: "test-results/risk-desktop.png",
+    fullPage: true,
+  });
+});
+
+test("partial failures recover and new pages handle insufficient history", async ({
+  page,
+}) => {
+  let attempts = 0;
+  await page.route("**/api/correlations", (route) => {
+    attempts++;
+    return route.fulfill({
+      json:
+        attempts === 1
+          ? {
+              ...fixture,
+              assets: fixture.assets.map((a) =>
+                a.id === "gold" ? { ...a, status: "error", candles: [] } : a,
+              ),
+            }
+          : { ...fixture, btc: fixture.btc.slice(-2), assets: [] },
+    });
+  });
+  await page.goto("/risk");
+  await expect(page.getByRole("alert")).toContainText(
+    "Some markets could not be loaded",
+  );
+  await expect(
+    page.getByRole("region", { name: "Risk by asset table", exact: true }),
+  ).toContainText("Could not load data");
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator(".chart-empty")).toContainText(
+    "Not enough history",
+  );
+  await page.getByRole("link", { name: "Performance", exact: true }).click();
+  await expect(page.locator('[data-kind="cumulative"]')).toHaveAttribute(
+    "aria-busy",
+    "false",
+  );
+  await expect(
+    page.locator(".heatmap").getByRole("cell").filter({ hasText: "%" }),
+  ).toHaveCount(0);
+});
+
+test.describe("new pages on touch screens", () => {
+  test.use({ hasTouch: true, isMobile: true });
+  for (const route of ["performance", "risk"]) {
+    for (const width of [320, 390]) {
+      test(`${route} at ${width}px wraps navigation and keeps tables contained`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.route("**/api/correlations", (route) =>
+          route.fulfill({ json: fixture }),
+        );
+        await page.goto(`/${route}`);
+        await expect(page.locator(".plot-shell[aria-busy=false]")).toHaveCount(
+          route === "risk" ? 2 : 1,
+        );
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        ).toBe(true);
+        const chart = page.locator(".plot-shell").first();
+        const toggle = chart.getByRole("button", {
+          name: "Bitcoin",
+          exact: true,
+        });
+        await toggle.tap();
+        await expect(toggle).toHaveAttribute("aria-pressed", "false");
+        await toggle.tap();
+        await chart.locator(".nsewdrag").tap();
+        await expect(chart.locator(".hoverlayer")).toContainText("Bitcoin");
+        await chart.getByRole("button", { name: "Zoom", exact: true }).tap();
+        await expect(chart).toHaveClass(/is-zooming/);
+        await chart.getByRole("button", { name: "Reset", exact: true }).tap();
+        await expect(chart).not.toHaveClass(/is-zooming/);
+        const download = page.waitForEvent("download");
+        await chart
+          .getByRole("button", { name: "Save PNG", exact: true })
+          .tap();
+        expect((await download).suggestedFilename()).toContain(
+          route === "risk" ? "drawdown" : "cumulative",
+        );
+        await page.getByRole("heading", { level: 1 }).click();
+        await page.screenshot({
+          path: `test-results/${route}-${width}.png`,
+          fullPage: true,
+        });
+      });
+    }
   }
 });

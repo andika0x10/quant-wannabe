@@ -342,7 +342,7 @@ h2 {
   flex: none;
   display: block;
   width: 18px;
-  border-top: 2px solid #555;
+  border-top: 1.25px solid #555;
   margin-top: 7px;
 }
 .cumulative-section {
@@ -572,5 +572,234 @@ h2 {
   *::after {
     transition: none !important;
     animation: none !important;
+  }
+}
+
+/* Analysis navigation and data tables share the chart's quiet visual hierarchy. */
+.site-header {
+  gap: 24px;
+}
+.site-header nav {
+  display: flex;
+  gap: 28px;
+  align-items: center;
+}
+.site-header nav a {
+  font-size: 14px;
+  color: #666;
+  padding: 12px 0;
+  border-bottom: 2px solid transparent;
+}
+.site-header nav a[aria-current="page"] {
+  color: #171717;
+  border-color: #171717;
+}
+.site-header nav a:hover {
+  color: #171717;
+}
+.skip-link {
+  position: fixed;
+  top: -100px;
+  left: 16px;
+  z-index: 10;
+  padding: 12px 18px;
+  background: #fff;
+  border: 1px solid #171717;
+}
+.skip-link:focus-visible {
+  top: 12px;
+}
+.analysis-section {
+  margin-top: 64px;
+  min-width: 0;
+}
+.market-status,
+.section-notice {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #666;
+  margin-bottom: 20px;
+}
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border-bottom: 1px solid #dedede;
+}
+.table-scroll:focus-visible {
+  outline: 2px solid #171717;
+  outline-offset: 4px;
+}
+.analysis-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.analysis-table th,
+.analysis-table td {
+  padding: 17px 20px;
+  border-top: 1px solid #e5e5e5;
+  white-space: nowrap;
+}
+.analysis-table th {
+  font-weight: 500;
+}
+.analysis-table thead th {
+  color: #666;
+  font-size: 12px;
+  font-weight: 400;
+}
+.analysis-table th:first-child {
+  padding-left: 0;
+}
+.analysis-table td:last-child {
+  color: #666;
+  font-size: 12px;
+}
+.analysis-table td:nth-child(2),
+.analysis-table td:nth-child(3) {
+  font-variant-numeric: tabular-nums;
+}
+.asset-name {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+}
+.asset-name .series-swatch {
+  margin-top: 0;
+}
+.table-detail {
+  display: block;
+  color: #666;
+  font-size: 11px;
+  line-height: 1.6;
+  margin-top: 4px;
+}
+.heatmap-year {
+  margin-top: 28px;
+}
+.heatmap-year h3 {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 20px;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+.heatmap {
+  min-width: 1060px;
+  font-size: 12px;
+}
+.heatmap th,
+.heatmap td {
+  padding: 14px 10px;
+}
+.heatmap td {
+  text-align: right;
+  border: 3px solid #fff;
+}
+.heatmap td:last-child {
+  color: inherit;
+  font-size: inherit;
+}
+.heatmap th:first-child {
+  min-width: 142px;
+}
+.heatmap-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  color: #666;
+  font-size: 12px;
+}
+.heatmap-scale {
+  width: 100px;
+  height: 10px;
+  background: linear-gradient(90deg, #edc6c6, #fff, #c5dfcf);
+}
+.inline-link {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+@media (max-width: 900px) {
+  .site-header {
+    height: auto;
+    min-height: 96px;
+    flex-wrap: wrap;
+    padding: 22px 0 12px;
+    gap: 12px 20px;
+  }
+  .site-header nav {
+    order: 3;
+    width: 100%;
+    gap: 28px;
+  }
+  .site-header .how-link {
+    margin-left: auto;
+  }
+}
+@media (max-width: 600px) {
+  .site-header nav {
+    gap: 24px;
+  }
+  .site-header nav a {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+  }
+  .site-header .how-link {
+    min-height: 44px;
+    gap: 6px;
+    font-size: 12px;
+  }
+  .analysis-section {
+    margin-top: 44px;
+  }
+  .analysis-table {
+    font-size: 13px;
+  }
+  .analysis-table th,
+  .analysis-table td {
+    padding: 14px 12px;
+  }
+  .analysis-table th:first-child {
+    padding-left: 0;
+  }
+  .heatmap {
+    font-size: 12px;
+  }
+  .risk-table {
+    min-width: 820px;
+  }
+}
+
+.heatmap tbody th,
+.risk-table tbody th {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 1;
+}
+.table-hint {
+  display: none;
+}
+@media (max-width: 600px) {
+  .table-hint {
+    display: block;
+    font-size: 12px;
+    color: #666;
+    line-height: 1.6;
+    margin-bottom: 12px;
   }
 }

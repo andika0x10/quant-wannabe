@@ -3,15 +3,37 @@
 import { useEffect, useRef, useState } from "react";
 import type { TimeSeries } from "../../lib/correlations";
 import type { Data, PlotlyHTMLElement } from "plotly.js";
-import { SERIES_COLORS } from "../../lib/chart-settings";
+import { SERIES_COLORS, SERIES_LINE_WIDTH } from "../../lib/chart-settings";
 
 export default function TimelinePlot({
   series,
   kind,
 }: {
   series: TimeSeries[];
-  kind: "rolling" | "cumulative";
+  kind: "rolling" | "cumulative" | "drawdown" | "volatility";
 }) {
+  const labels = {
+    rolling: {
+      axis: "Pearson r",
+      hover: "%{y:.3f}",
+      description: "Rolling Pearson correlation with Bitcoin",
+    },
+    cumulative: {
+      axis: "Growth of 1×",
+      hover: "%{y:.3f}×",
+      description: "Cumulative returns starting at one",
+    },
+    drawdown: {
+      axis: "Drawdown (%)",
+      hover: "%{y:.2f}%",
+      description: "Drawdown from historical peak",
+    },
+    volatility: {
+      axis: "Annualized volatility (%)",
+      hover: "%{y:.2f}%",
+      description: "Rolling annualized volatility",
+    },
+  }[kind];
   const container = useRef<HTMLDivElement>(null);
   const graph = useRef<HTMLDivElement | null>(null);
   const [mobile, setMobile] = useState(false);
@@ -62,12 +84,13 @@ export default function TimelinePlot({
           x: s.points.map((p) => p.date),
           y: s.points.map((p) => p.value),
           connectgaps: false,
-          line: { color: SERIES_COLORS[s.id], dash: "solid", width: 2 },
+          line: {
+            color: SERIES_COLORS[s.id],
+            dash: "solid",
+            width: SERIES_LINE_WIDTH,
+          },
           marker: { color: SERIES_COLORS[s.id], size: 5 },
-          hovertemplate:
-            kind === "rolling"
-              ? "%{y:.3f}<extra>%{fullData.name}</extra>"
-              : "%{y:.3f}×<extra>%{fullData.name}</extra>",
+          hovertemplate: `${labels.hover}<extra>%{fullData.name}</extra>`,
         })) as Data[],
         {
           autosize: true,
@@ -102,11 +125,16 @@ export default function TimelinePlot({
           },
           yaxis: {
             title: {
-              text: kind === "rolling" ? "Pearson r" : "Growth of 1×",
+              text: labels.axis,
               standoff: 10,
             },
             range: kind === "rolling" ? [-1.05, 1.05] : undefined,
-            ticksuffix: kind === "cumulative" ? "×" : "",
+            ticksuffix:
+              kind === "cumulative" ? "×" : kind === "rolling" ? "" : "%",
+            rangemode:
+              kind === "volatility" || kind === "drawdown"
+                ? "tozero"
+                : "normal",
             gridcolor: "#f0f0f0",
             zerolinecolor: "#aaa",
             dtick: kind === "rolling" ? 0.5 : undefined,
@@ -324,7 +352,7 @@ export default function TimelinePlot({
           void inspectDate(event.clientX, event.clientY);
         }}
         role="img"
-        aria-label={`${kind === "rolling" ? "Rolling Pearson correlation with Bitcoin" : "Cumulative returns starting at one"} over time: ${series.map((s) => s.name).join(", ")}. Use the legend to toggle lines.`}
+        aria-label={`${labels.description} over time: ${series.map((s) => s.name).join(", ")}. Use the legend to toggle lines.`}
       />
       {actionError && (
         <p className="chart-action-error" role="alert">
@@ -333,7 +361,7 @@ export default function TimelinePlot({
       )}
       {loading && (
         <div className="plot-overlay" role="status">
-          Plotting the relationships…
+          Preparing the chart…
         </div>
       )}
       {error && (

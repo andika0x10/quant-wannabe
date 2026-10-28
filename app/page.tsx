@@ -1,5 +1,5 @@
-import CorrelationDashboard from "./components/correlation-dashboard";
+import { redirect } from "next/navigation";
 
 export default function Home() {
-  return <CorrelationDashboard />;
+  redirect("/correlations");
 }

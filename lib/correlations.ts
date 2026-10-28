@@ -112,7 +112,7 @@ function fit(points: Point[]): Analysis {
 export type TimePoint = { date: string; value: number | null };
 export type TimeSeries = { id: string; name: string; points: TimePoint[] };
 
-function completedCloses(candles: Candle[], now: number) {
+export function completedCloses(candles: Candle[], now: number) {
   return new Map(
     candles
       .filter(
